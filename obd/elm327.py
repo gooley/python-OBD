@@ -104,7 +104,7 @@ class ELM327:
     _TRY_BAUDS = [38400, 9600, 230400, 115200, 57600, 19200]
 
     def __init__(self, portname, baudrate, protocol, timeout,
-                 check_voltage=True, start_low_power=False):
+                 check_voltage=True, start_low_power=False, line_feed=False, spaces=False, headers=True):
         """Initializes port by resetting device and gettings supported PIDs. """
 
         logger.info("Initializing ELM327: PORT=%s BAUD=%s PROTOCOL=%s" %
@@ -145,6 +145,13 @@ class ELM327:
             self.__error("Failed to set baudrate")
             return
 
+         # ---------------------------- ATD (set all to defaults) ----------------------------
+        try:
+            self.__send(b"ATD", delay=1)  # wait 1 second for ELM to initialize
+        except serial.SerialException as e:
+            self.__error("ATD did not passed")
+            return
+        
         # ---------------------------- ATZ (reset) ----------------------------
         try:
             self.__send(b"ATZ", delay=1)  # wait 1 second for ELM to initialize
@@ -154,29 +161,37 @@ class ELM327:
             return
 
         # -------------------------- ATE0 (echo OFF) --------------------------
-        r = self.__send(b"ATE0")
+        r = self.__send(b"ATE0", delay=1)
         if not self.__isok(r, expectEcho=True):
             self.__error("ATE0 did not return 'OK'")
             return
 
-        # ------------------------- ATH1 (headers ON) -------------------------
-        r = self.__send(b"ATH1")
+        
+        # ------------------------ ATL (linefeeds OFF/ON) -----------------------
+        r = self.__send(b"ATL1" if line_feed else b"ATL0", delay=1)
         if not self.__isok(r):
-            self.__error("ATH1 did not return 'OK', or echoing is still ON")
+            self.__error("ATL did not return 'OK'")
+            return
+        
+        # ------------------------ ATS (Spaces OFF/ON) -----------------------
+        r = self.__send(b"ATS1" if spaces else b"ATS0" , delay=1)
+        if not self.__isok(r):
+            self.__error("ATS did not return 'OK'")
+            return
+        # ------------------------- ATH (headers OFF/ON) -------------------------
+        r = self.__send(b"ATH1" if headers else b"ATH0", delay=1)
+        if not self.__isok(r):
+            self.__error("ATH did not return 'OK', or echoing is still ON")
             return
 
-        # ------------------------ ATL0 (linefeeds OFF) -----------------------
-        r = self.__send(b"ATL0")
-        if not self.__isok(r):
-            self.__error("ATL0 did not return 'OK'")
-            return
+        
 
         # by now, we've successfuly communicated with the ELM, but not the car
         self.__status = OBDStatus.ELM_CONNECTED
 
         # -------------------------- AT RV (read volt) ------------------------
         if check_voltage:
-            r = self.__send(b"AT RV")
+            r = self.__send(b"AT RV", delay=1)
             if not r or len(r) != 1 or r[0] == '':
                 self.__error("No answer from 'AT RV'")
                 return
@@ -220,8 +235,8 @@ class ELM327:
             return self.auto_protocol()
 
     def manual_protocol(self, protocol_):
-        r = self.__send(b"ATTP" + protocol_.encode())
-        r0100 = self.__send(b"0100")
+        r = self.__send(b"ATTP" + protocol_.encode(), delay=1)
+        r0100 = self.__send(b"0100", delay=1)
 
         if not self.__has_message(r0100, "UNABLE TO CONNECT"):
             # success, found the protocol
@@ -250,7 +265,7 @@ class ELM327:
             return False
 
         # ------------------- ATDPN (list protocol number) -------------------
-        r = self.__send(b"ATDPN")
+        r = self.__send(b"ATDPN", delay=1)
         if len(r) != 1:
             logger.error("Failed to retrieve current protocol")
             return False
@@ -271,8 +286,8 @@ class ELM327:
             logger.debug("ELM responded with unknown protocol. Trying them one-by-one")
 
             for p in self._TRY_PROTOCOL_ORDER:
-                r = self.__send(b"ATTP" + p.encode())
-                r0100 = self.__send(b"0100")
+                r = self.__send(b"ATTP" + p.encode(), delay=1)
+                r0100 = self.__send(b"0100", delay=1)
                 if not self.__has_message(r0100, "UNABLE TO CONNECT"):
                     # success, found the protocol
                     self.__protocol = self._SUPPORTED_PROTOCOLS[p](r0100)
