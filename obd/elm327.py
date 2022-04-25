@@ -104,7 +104,7 @@ class ELM327:
     _TRY_BAUDS = [38400, 9600, 230400, 115200, 57600, 19200]
 
     def __init__(self, portname, baudrate, protocol, timeout,
-                 check_voltage=True, start_low_power=False, line_feed=False, spaces=False, headers=True):
+                 check_voltage=True, start_low_power=False, line_feed=False, spaces=False, headers=True, c_delay = 1):
         """Initializes port by resetting device and gettings supported PIDs. """
 
         logger.info("Initializing ELM327: PORT=%s BAUD=%s PROTOCOL=%s" %
@@ -236,7 +236,7 @@ class ELM327:
 
     def manual_protocol(self, protocol_):
         r = self.__send(b"ATTP" + protocol_.encode(), delay=1)
-        r0100 = self.__send(b"0100", delay=1)
+        r0100 = self.__send(b"0100", delay=c_delay)
 
         if not self.__has_message(r0100, "UNABLE TO CONNECT"):
             # success, found the protocol
@@ -259,7 +259,7 @@ class ELM327:
         r = self.__send(b"ATSP0", delay=1)
 
         # -------------- 0100 (first command, SEARCH protocols) --------------
-        r0100 = self.__send(b"0100", delay=1)
+        r0100 = self.__send(b"0100", delay=c_delay)
         if self.__has_message(r0100, "UNABLE TO CONNECT"):
             logger.error("Failed to query protocol 0100: unable to connect")
             return False
@@ -287,7 +287,7 @@ class ELM327:
 
             for p in self._TRY_PROTOCOL_ORDER:
                 r = self.__send(b"ATTP" + p.encode(), delay=1)
-                r0100 = self.__send(b"0100", delay=1)
+                r0100 = self.__send(b"0100", delay=c_delay)
                 if not self.__has_message(r0100, "UNABLE TO CONNECT"):
                     # success, found the protocol
                     self.__protocol = self._SUPPORTED_PROTOCOLS[p](r0100)
