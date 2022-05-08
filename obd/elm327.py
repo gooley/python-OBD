@@ -118,6 +118,7 @@ class ELM327:
         self.__port = None
         self.__protocol = UnknownProtocol([])
         self.__low_power = False
+        self.__c_delay = c_delay
         self.timeout = timeout
 
         # ------------- open port -------------
@@ -236,7 +237,7 @@ class ELM327:
 
     def manual_protocol(self, protocol_):
         r = self.__send(b"ATTP" + protocol_.encode(), delay=1)
-        r0100 = self.__send(b"0100", delay=c_delay)
+        r0100 = self.__send(b"0100", delay=self.__c_delay)
 
         if not self.__has_message(r0100, "UNABLE TO CONNECT"):
             # success, found the protocol
@@ -259,7 +260,7 @@ class ELM327:
         r = self.__send(b"ATSP0", delay=1)
 
         # -------------- 0100 (first command, SEARCH protocols) --------------
-        r0100 = self.__send(b"0100", delay=c_delay)
+        r0100 = self.__send(b"0100", delay=self.__c_delay)
         if self.__has_message(r0100, "UNABLE TO CONNECT"):
             logger.error("Failed to query protocol 0100: unable to connect")
             return False
@@ -287,7 +288,7 @@ class ELM327:
 
             for p in self._TRY_PROTOCOL_ORDER:
                 r = self.__send(b"ATTP" + p.encode(), delay=1)
-                r0100 = self.__send(b"0100", delay=c_delay)
+                r0100 = self.__send(b"0100", delay=self.__c_delay)
                 if not self.__has_message(r0100, "UNABLE TO CONNECT"):
                     # success, found the protocol
                     self.__protocol = self._SUPPORTED_PROTOCOLS[p](r0100)
